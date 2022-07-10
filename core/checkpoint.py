@@ -1,11 +1,8 @@
 """
-StarGAN v2
-Copyright (c) 2020-present NAVER Corp.
+StarGAN v2 (Train Version)
 
-This work is licensed under the Creative Commons Attribution-NonCommercial
-4.0 International License. To view a copy of this license, visit
-http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
-Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+This work was modified by JONATHON and CHUCK from USTC
+based on https://github.com/clovaai/stargan-v2 (Official Version)
 """
 
 import os
@@ -45,6 +42,6 @@ class CheckpointIO(object):
             
         for name, module in self.module_dict.items():
             if self.data_parallel:
-                module.module.load_state_dict(module_dict[name])
+                module.module.load_state_dict(module_dict[name], False)
             else:
                 module.load_state_dict(module_dict[name])

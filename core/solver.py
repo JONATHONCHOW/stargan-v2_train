@@ -1,14 +1,10 @@
 """
-StarGAN v2
-Copyright (c) 2020-present NAVER Corp.
+StarGAN v2 (Train Version)
 
-This work is licensed under the Creative Commons Attribution-NonCommercial
-4.0 International License. To view a copy of this license, visit
-http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
-Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+This work was modified by JONATHON and CHUCK from USTC
+based on https://github.com/clovaai/stargan-v2 (Official Version)
 """
 
-import os
 from os.path import join as ospj
 import time
 import datetime
@@ -17,12 +13,12 @@ from munch import Munch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
 
 from core.model import build_model
 from core.checkpoint import CheckpointIO
 from core.data_loader import InputFetcher
 import core.utils as utils
-from metrics.eval import calculate_metrics
 
 
 class Solver(nn.Module):
@@ -51,11 +47,11 @@ class Solver(nn.Module):
                     weight_decay=args.weight_decay)
 
             self.ckptios = [
-                CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_nets.ckpt'), data_parallel=True, **self.nets),
-                CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_nets_ema.ckpt'), data_parallel=True, **self.nets_ema),
-                CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_optims.ckpt'), **self.optims)]
+                CheckpointIO(ospj(args.checkpoint_dir, '{}_nets.ckpt'), data_parallel=True, **self.nets),
+                CheckpointIO(ospj(args.checkpoint_dir, '{}_nets_ema.ckpt'), data_parallel=True, **self.nets_ema),
+                CheckpointIO(ospj(args.checkpoint_dir, '{}_optims.ckpt'), **self.optims)]
         else:
-            self.ckptios = [CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_nets_ema.ckpt'), data_parallel=True, **self.nets_ema)]
+            self.ckptios = [CheckpointIO(ospj(args.checkpoint_dir, '{}_nets_ema.ckpt'.format(args.resume_iter)), data_parallel=True, **self.nets_ema)]
 
         self.to(self.device)
         for name, network in self.named_children():
@@ -96,6 +92,10 @@ class Solver(nn.Module):
 
         print('Start training...')
         start_time = time.time()
+
+        # add tensorboard
+        writer = SummaryWriter(log_dir="/data/JONATHONCHOW/celeba_hq/runs/result", flush_secs=120)
+
         for i in range(args.resume_iter, args.total_iters):
             # fetch images and labels
             inputs = next(fetcher)
@@ -156,46 +156,13 @@ class Solver(nn.Module):
                 log += ' '.join(['%s: [%.4f]' % (key, value) for key, value in all_losses.items()])
                 print(log)
 
-            # generate images for debugging
-            if (i+1) % args.sample_every == 0:
-                os.makedirs(args.sample_dir, exist_ok=True)
-                utils.debug_image(nets_ema, args, inputs=inputs_val, step=i+1)
+                # write all the Loss values into tensorboard
+                for key, value in all_losses.items():
+                    writer.add_scalar('%s' % key, value, i)
 
             # save model checkpoints
             if (i+1) % args.save_every == 0:
                 self._save_checkpoint(step=i+1)
-
-            # compute FID and LPIPS if necessary
-            if (i+1) % args.eval_every == 0:
-                calculate_metrics(nets_ema, args, i+1, mode='latent')
-                calculate_metrics(nets_ema, args, i+1, mode='reference')
-
-    @torch.no_grad()
-    def sample(self, loaders):
-        args = self.args
-        nets_ema = self.nets_ema
-        os.makedirs(args.result_dir, exist_ok=True)
-        self._load_checkpoint(args.resume_iter)
-
-        src = next(InputFetcher(loaders.src, None, args.latent_dim, 'test'))
-        ref = next(InputFetcher(loaders.ref, None, args.latent_dim, 'test'))
-
-        fname = ospj(args.result_dir, 'reference.jpg')
-        print('Working on {}...'.format(fname))
-        utils.translate_using_reference(nets_ema, args, src.x, ref.x, ref.y, fname)
-
-        fname = ospj(args.result_dir, 'video_ref.mp4')
-        print('Working on {}...'.format(fname))
-        utils.video_ref(nets_ema, args, src.x, ref.x, ref.y, fname)
-
-    @torch.no_grad()
-    def evaluate(self):
-        args = self.args
-        nets_ema = self.nets_ema
-        resume_iter = args.resume_iter
-        self._load_checkpoint(args.resume_iter)
-        calculate_metrics(nets_ema, args, step=resume_iter, mode='latent')
-        calculate_metrics(nets_ema, args, step=resume_iter, mode='reference')
 
 
 def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, masks=None):

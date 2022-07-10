@@ -1,11 +1,8 @@
 """
-StarGAN v2
-Copyright (c) 2020-present NAVER Corp.
+StarGAN v2 (Train Version)
 
-This work is licensed under the Creative Commons Attribution-NonCommercial
-4.0 International License. To view a copy of this license, visit
-http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
-Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+This work was modified by JONATHON and CHUCK from USTC
+based on https://github.com/clovaai/stargan-v2 (Official Version)
 """
 
 from pathlib import Path
@@ -118,35 +115,6 @@ def get_train_loader(root, which='source', img_size=256,
                            num_workers=num_workers,
                            pin_memory=True,
                            drop_last=True)
-
-
-def get_eval_loader(root, img_size=256, batch_size=32,
-                    imagenet_normalize=True, shuffle=True,
-                    num_workers=4, drop_last=False):
-    print('Preparing DataLoader for the evaluation phase...')
-    if imagenet_normalize:
-        height, width = 299, 299
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-    else:
-        height, width = img_size, img_size
-        mean = [0.5, 0.5, 0.5]
-        std = [0.5, 0.5, 0.5]
-
-    transform = transforms.Compose([
-        transforms.Resize([img_size, img_size]),
-        transforms.Resize([height, width]),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std)
-    ])
-
-    dataset = DefaultDataset(root, transform=transform)
-    return data.DataLoader(dataset=dataset,
-                           batch_size=batch_size,
-                           shuffle=shuffle,
-                           num_workers=num_workers,
-                           pin_memory=True,
-                           drop_last=drop_last)
 
 
 def get_test_loader(root, img_size=256, batch_size=32,
